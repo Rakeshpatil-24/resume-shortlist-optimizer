@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- PDF.js CDN for client-side PDF text extraction -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Mammoth.js CDN for client-side Word (.docx) text extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -17,6 +19,12 @@
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
+        }
+        /* Drag and drop active states */
+        .drag-over {
+            border-color: #2563eb !important;
+            background-color: #eff6ff !important;
+            transform: scale(1.005);
         }
         @media print {
             body { background: white !important; padding: 0 !important; color: black !important; }
@@ -97,12 +105,13 @@
 
         <!-- Inputs Wrapper -->
         <div id="inputSection" class="space-y-6">
+            
             <!-- Job Description Section -->
-            <section class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
+            <section class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
                         <h2 class="text-lg font-bold text-slate-800">1. Job Description (JD)</h2>
-                        <p class="text-xs text-slate-500">Paste responsibilities, required technical skills, and candidate requirements.</p>
+                        <p class="text-xs text-slate-500">Paste responsibilities or drag & drop a JD document (.docx, .pdf, .txt).</p>
                     </div>
                     <button 
                         type="button" 
@@ -112,20 +121,47 @@
                         Load Sample JD
                     </button>
                 </div>
-                <textarea
-                    id="jd"
-                    rows="6"
-                    class="w-full p-4 text-sm border border-slate-200 rounded-xl shadow-inner focus:ring-2 focus:ring-blue-500 outline-none transition text-slate-800 resize-y"
-                    placeholder="Paste the target job description here..."
-                ></textarea>
+
+                <!-- JD Drag and Drop Bar -->
+                <div 
+                    id="jdDropZone"
+                    class="border-2 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/40 rounded-xl p-3 text-center transition cursor-pointer flex items-center justify-center gap-2 group"
+                    onclick="document.getElementById('jdFileInput').click()"
+                    ondragover="handleJdDragOver(event)"
+                    ondragleave="handleJdDragLeave(event)"
+                    ondrop="handleJdDrop(event)"
+                >
+                    <input type="file" id="jdFileInput" accept=".pdf,.docx,.doc,.txt,.md" class="hidden" onchange="handleJdFileChange(event)">
+                    <span class="text-base group-hover:scale-110 transition-transform">📂</span>
+                    <span class="text-xs font-medium text-slate-600">
+                        Drag & drop a Job Description file (<strong class="text-slate-800">.docx, .pdf, .txt</strong>) or <span class="text-blue-600 underline">browse</span>
+                    </span>
+                    <span id="jdFileStatus" class="hidden text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md ml-2"></span>
+                </div>
+
+                <div class="relative">
+                    <textarea
+                        id="jd"
+                        rows="6"
+                        class="w-full p-4 text-sm border border-slate-200 rounded-xl shadow-inner focus:ring-2 focus:ring-blue-500 outline-none transition text-slate-800 resize-y"
+                        placeholder="Paste the target job description here or drop a file above..."
+                        ondragover="handleJdDragOver(event)"
+                        ondragleave="handleJdDragLeave(event)"
+                        ondrop="handleJdDrop(event)"
+                    ></textarea>
+                    <div id="jdLoading" class="hidden absolute inset-0 bg-white/85 rounded-xl flex items-center justify-center text-sm font-medium text-blue-600 gap-2">
+                        <div class="h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full spinner"></div>
+                        <span id="jdLoadingText">Extracting text...</span>
+                    </div>
+                </div>
             </section>
 
-            <!-- Resumes Section (Single or Multiple) -->
+            <!-- Resumes Section (Single or Multiple with Drag & Drop) -->
             <section class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                         <h2 class="text-lg font-bold text-slate-800">2. Candidate Resumes</h2>
-                        <p class="text-xs text-slate-500">Evaluate 1 candidate or upload multiple candidates to rank and compare side-by-side.</p>
+                        <p class="text-xs text-slate-500">Drag & drop Word (.docx) or PDF resumes into any card, or drop multiple files at once.</p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button 
@@ -145,7 +181,7 @@
                     </div>
                 </div>
 
-                <div id="resumeCardsContainer" class="space-y-4"></div>
+                <div id="resumeCardsContainer" class="space-y-5"></div>
             </section>
         </div>
 
@@ -269,7 +305,7 @@
 
     </div>
 
-    <!-- Modal for Outreach Drafts & Tailored Resumes -->
+    <!-- Modal for Outreach Drafts, Tailored Resumes & API Key Guide -->
     <div id="actionModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -383,7 +419,7 @@ Education: B.Tech in Computer Science.`
                             <span>⚡</span> Can I use an OpenAI (ChatGPT) or Claude key?
                         </h4>
                         <p class="text-slate-600 text-xs sm:text-sm">
-                            <strong>No.</strong> This tool specifically connects to <strong>Google Gemini</strong> API endpoints. Keys from OpenAI, Anthropic Claude, or Groq will be rejected with an "Invalid Key" error. Google provides a generous free tier for Gemini with no credit card required.
+                            <strong>No.</strong> This tool connects directly to <strong>Google Gemini</strong> endpoints. Keys from OpenAI, Anthropic Claude, or Groq will be rejected with an "Invalid Key" error. Google provides a generous free tier for Gemini with no credit card required.
                         </p>
                     </div>
 
@@ -411,6 +447,7 @@ Education: B.Tech in Computer Science.`
 
         function loadSampleJD() {
             document.getElementById('jd').value = SAMPLE_JD;
+            document.getElementById('jdFileStatus').classList.add('hidden');
         }
 
         function loadSampleResumes() {
@@ -427,6 +464,110 @@ Education: B.Tech in Computer Science.`
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
+        // --- File Extraction Logic (Word .docx, PDF, and Text) ---
+        async function extractTextFromDocx(file) {
+            if (!window.mammoth) {
+                throw new Error("Word document parser (Mammoth.js) failed to load. Please verify your internet connection or paste text directly.");
+            }
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await window.mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+            if (!result.value || !result.value.trim()) {
+                throw new Error("The Word document (.docx) does not contain extractable plain text.");
+            }
+            return result.value.trim();
+        }
+
+        async function extractTextFromPDF(file) {
+            if (!window.pdfjsLib) {
+                throw new Error("PDF parser library failed to load. Please paste text directly.");
+            }
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = "";
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(" ");
+                fullText += pageText + "\n\n";
+            }
+
+            if (!fullText.trim()) {
+                throw new Error("PDF contains no extractable text (it may be a scanned image).");
+            }
+            return fullText.trim();
+        }
+
+        async function extractTextFromFile(file) {
+            const lower = file.name.toLowerCase();
+            if (lower.endsWith('.pdf')) {
+                return await extractTextFromPDF(file);
+            } else if (lower.endsWith('.docx')) {
+                return await extractTextFromDocx(file);
+            } else if (lower.endsWith('.doc')) {
+                throw new Error("Legacy Word (.doc) format is not supported directly in the browser. Please re-save or export the document as .docx or PDF, or paste text directly.");
+            } else {
+                // txt, md, rtf, etc.
+                return await file.text();
+            }
+        }
+
+        // --- Job Description Drag & Drop and File Handling ---
+        function handleJdDragOver(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById('jdDropZone').classList.add('drag-over');
+            document.getElementById('jd').classList.add('drag-over');
+        }
+
+        function handleJdDragLeave(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById('jdDropZone').classList.remove('drag-over');
+            document.getElementById('jd').classList.remove('drag-over');
+        }
+
+        async function handleJdDrop(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            document.getElementById('jdDropZone').classList.remove('drag-over');
+            document.getElementById('jd').classList.remove('drag-over');
+
+            const files = event.dataTransfer?.files;
+            if (files && files.length > 0) {
+                await processJdFile(files[0]);
+            }
+        }
+
+        async function handleJdFileChange(event) {
+            const file = event.target.files?.[0];
+            if (file) {
+                await processJdFile(file);
+            }
+        }
+
+        async function processJdFile(file) {
+            const loader = document.getElementById('jdLoading');
+            const loadingText = document.getElementById('jdLoadingText');
+            const status = document.getElementById('jdFileStatus');
+            const textarea = document.getElementById('jd');
+
+            loader.classList.remove('hidden');
+            loadingText.textContent = `Extracting from ${file.name}...`;
+
+            try {
+                const text = await extractTextFromFile(file);
+                textarea.value = text;
+                status.textContent = `✓ ${file.name}`;
+                status.classList.remove('hidden');
+            } catch (err) {
+                alert(`Could not process Job Description file: ${err.message}`);
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        // --- Resume Card Creation & Drag & Drop Handling ---
         function addResumeCard(initialName = '', initialText = '') {
             resumeCardCounter++;
             const id = resumeCardCounter;
@@ -448,36 +589,65 @@ Education: B.Tech in Computer Science.`
                         />
                     </div>
                     <div class="flex items-center gap-2">
-                        <label class="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
-                            <span>📄 Upload PDF/TXT</span>
-                            <input type="file" accept=".txt,.pdf,.md" class="hidden" onchange="handleFileUpload(event, ${id})">
-                        </label>
+                        <span id="fileBadge_${id}" class="hidden text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg"></span>
                         <button 
                             type="button" 
                             onclick="removeResumeCard(${id})" 
-                            class="delete-btn text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition"
+                            class="text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition"
                             title="Remove candidate"
                         >
                             ✕ Remove
                         </button>
                     </div>
                 </div>
+
+                <!-- Drag and Drop Dropzone -->
+                <div 
+                    id="dropZone_${id}"
+                    class="border-2 border-dashed border-slate-300 hover:border-blue-500 bg-white/70 hover:bg-blue-50/40 rounded-xl p-3.5 text-center transition cursor-pointer group"
+                    onclick="document.getElementById('fileInput_${id}').click()"
+                    ondragover="handleResumeDragOver(event, ${id})"
+                    ondragleave="handleResumeDragLeave(event, ${id})"
+                    ondrop="handleResumeDrop(event, ${id})"
+                >
+                    <input 
+                        type="file" 
+                        id="fileInput_${id}" 
+                        accept=".docx,.pdf,.doc,.txt,.md" 
+                        class="hidden" 
+                        multiple
+                        onchange="handleResumeFileInputChange(event, ${id})"
+                    >
+                    <div class="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs text-slate-600 pointer-events-none">
+                        <span class="text-xl group-hover:scale-110 transition-transform">📄</span>
+                        <span class="font-medium">
+                            Drag & drop resume (<strong class="text-slate-900">Word .docx, PDF, TXT</strong>) or <span class="text-blue-600 underline font-semibold">browse</span>
+                        </span>
+                        <span class="text-slate-400 text-[11px] sm:ml-1">(Multi-file drop supported)</span>
+                    </div>
+                </div>
+
                 <div class="relative">
                     <textarea
                         id="resumeText_${id}"
-                        rows="7"
+                        rows="6"
                         class="w-full p-3.5 text-sm bg-white border border-slate-200 rounded-xl shadow-inner focus:ring-2 focus:ring-blue-500 outline-none transition text-slate-800 resize-y font-mono text-xs"
-                        placeholder="Paste plain text of the resume or upload a file above..."
+                        placeholder="Paste plain text of resume here, or drag & drop files above..."
+                        ondragover="handleResumeDragOver(event, ${id})"
+                        ondragleave="handleResumeDragLeave(event, ${id})"
+                        ondrop="handleResumeDrop(event, ${id})"
                     >${initialText}</textarea>
-                    <div id="fileLoading_${id}" class="hidden absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center text-sm font-medium text-blue-600 gap-2">
+                    
+                    <div id="fileLoading_${id}" class="hidden absolute inset-0 bg-white/85 rounded-xl flex items-center justify-center text-sm font-medium text-blue-600 gap-2">
                         <div class="h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full spinner"></div>
-                        <span>Extracting document text...</span>
+                        <span id="fileLoadingText_${id}">Extracting document text...</span>
                     </div>
                 </div>
             `;
 
             document.getElementById('resumeCardsContainer').appendChild(card);
             updateAnalysisHint();
+            return id;
         }
 
         function removeResumeCard(id) {
@@ -509,56 +679,88 @@ Education: B.Tech in Computer Science.`
             }
         }
 
-        async function handleFileUpload(event, cardId) {
-            const file = event.target.files[0];
-            if (!file) return;
+        function handleResumeDragOver(event, cardId) {
+            event.preventDefault();
+            event.stopPropagation();
+            const zone = document.getElementById(`dropZone_${cardId}`);
+            if (zone) zone.classList.add('drag-over');
+            const textarea = document.getElementById(`resumeText_${cardId}`);
+            if (textarea) textarea.classList.add('drag-over');
+        }
 
+        function handleResumeDragLeave(event, cardId) {
+            event.preventDefault();
+            event.stopPropagation();
+            const zone = document.getElementById(`dropZone_${cardId}`);
+            if (zone) zone.classList.remove('drag-over');
+            const textarea = document.getElementById(`resumeText_${cardId}`);
+            if (textarea) textarea.classList.remove('drag-over');
+        }
+
+        async function handleResumeDrop(event, cardId) {
+            event.preventDefault();
+            event.stopPropagation();
+            const zone = document.getElementById(`dropZone_${cardId}`);
+            if (zone) zone.classList.remove('drag-over');
+            const textarea = document.getElementById(`resumeText_${cardId}`);
+            if (textarea) textarea.classList.remove('drag-over');
+
+            const files = Array.from(event.dataTransfer?.files || []);
+            if (!files.length) return;
+
+            // First file fills current card
+            await processResumeFile(files[0], cardId);
+
+            // If user dropped multiple files at once, auto-create cards for remaining files
+            for (let i = 1; i < files.length; i++) {
+                const newId = addResumeCard();
+                await processResumeFile(files[i], newId);
+            }
+        }
+
+        async function handleResumeFileInputChange(event, cardId) {
+            const files = Array.from(event.target.files || []);
+            if (!files.length) return;
+
+            await processResumeFile(files[0], cardId);
+
+            for (let i = 1; i < files.length; i++) {
+                const newId = addResumeCard();
+                await processResumeFile(files[i], newId);
+            }
+        }
+
+        async function processResumeFile(file, cardId) {
             const loader = document.getElementById(`fileLoading_${cardId}`);
+            const loadingText = document.getElementById(`fileLoadingText_${cardId}`);
             const textarea = document.getElementById(`resumeText_${cardId}`);
             const nameInput = document.getElementById(`candidateName_${cardId}`);
+            const badge = document.getElementById(`fileBadge_${cardId}`);
 
-            if (loader) loader.classList.remove('hidden');
+            if (loader) {
+                loader.classList.remove('hidden');
+                loadingText.textContent = `Extracting ${file.name}...`;
+            }
 
+            // Auto-populate candidate name from file name if default
             const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
             if (nameInput && (!nameInput.value || nameInput.value.startsWith("Candidate"))) {
                 nameInput.value = cleanName;
             }
 
             try {
-                if (file.name.endsWith('.pdf')) {
-                    const text = await extractTextFromPDF(file);
-                    textarea.value = text;
-                } else {
-                    const text = await file.text();
-                    textarea.value = text;
+                const text = await extractTextFromFile(file);
+                textarea.value = text;
+                if (badge) {
+                    badge.textContent = `📎 ${file.name}`;
+                    badge.classList.remove('hidden');
                 }
             } catch (err) {
                 console.error("File extraction error:", err);
-                alert("Failed to extract text from file: " + err.message);
+                alert(`Error reading file (${file.name}): ${err.message}`);
             } finally {
                 if (loader) loader.classList.add('hidden');
             }
-        }
-
-        async function extractTextFromPDF(file) {
-            if (!window.pdfjsLib) {
-                throw new Error("PDF parser library failed to load. Please paste text directly.");
-            }
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let fullText = "";
-
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                const pageText = textContent.items.map(item => item.str).join(" ");
-                fullText += pageText + "\n\n";
-            }
-
-            if (!fullText.trim()) {
-                throw new Error("PDF contains no extractable text (it may be a scanned document).");
-            }
-            return fullText.trim();
         }
 
         // --- Structured Output Schemas ---
@@ -712,7 +914,7 @@ Your objective:
             });
 
             if (candidatesData.length === 0) {
-                errorMessage.textContent = "Please provide at least one resume text or upload a resume file.";
+                errorMessage.textContent = "Please provide at least one resume text or drop a file (.docx, .pdf).";
                 errorContainer.classList.remove('hidden');
                 return;
             }
@@ -1236,10 +1438,3 @@ ${outputText}
     </script>
 </body>
 </html>
-
-<footer class="text-center text-xs text-slate-400 py-8">
-    <p>
-        ⚠️ AI-assisted screening only. Do not use AI scores as the sole basis
-        for employment decisions. Human review is recommended.
-    </p>
-</footer>
