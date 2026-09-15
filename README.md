@@ -53,11 +53,7 @@ Never share your API key publicly.
 
 ## 🌐 Live Demo
 
-Add your deployed website URL here.
-
-## 📸 Screenshots
-
-Add screenshots of the application here.
+https://rakeshpatil-24.github.io/resume-shortlist-optimizer/
 
 ## ⚠️ Disclaimer
 
@@ -65,4 +61,4 @@ This tool is an AI-assisted screening and resume analysis tool. AI-generated sco
 
 ## 👨‍💻 Author
 
-Your Name
+Rakesh Patil
