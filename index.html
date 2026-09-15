@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Shortlist Optimizer & Recruiter Copilot</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js CDN for client-side PDF text extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .spinner {
+            border-top-color: #3b82f6;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @media print {
+            body { background: white !important; padding: 0 !important; color: black !important; }
+            header, #apiConfigSection, #inputSection, #optimizeActions, .no-print { display: none !important; }
+            #resultsArea { display: block !important; }
+            .print-break { page-break-before: always; }
+            .shadow-sm, .shadow-md, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
+            .border { border-color: #cbd5e1 !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-8">
+
+    <div class="max-w-6xl mx-auto space-y-8">
+        
+        <!-- Header -->
+        <header class="text-center space-y-2">
+            <div class="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold uppercase tracking-wider mb-1">
+                <span>⚡ AI-Powered Candidate Screening, Ranking & Tailoring Copilot</span>
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+                Resume Shortlist Optimizer
+            </h1>
+            <p class="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base">
+                Screen single candidates or compare multiple resumes, rank top talent against your Job Description, rewrite bullets to boost scores, generate interview questions, and draft outreach emails.
+            </p>
+        </header>
+
+        <!-- API Configuration Banner with Explainer -->
+        <section id="apiConfigSection" class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <label for="apiKey" class="block text-sm font-semibold text-slate-800">
+                            Google Gemini API Key <span class="text-red-500">*</span>
+                        </label>
+                        <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-full uppercase tracking-wider">Gemini Only</span>
+                    </div>
+                    <p class="text-xs text-slate-500">Stored strictly in your local browser; never transmitted to any middleman server.</p>
+                </div>
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:w-2/3">
+                    <div class="relative flex-1">
+                        <input
+                            type="password"
+                            id="apiKey"
+                            placeholder="Paste Google Gemini Key (AIzaSy...)"
+                            class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition font-mono text-xs"
+                        />
+                        <button 
+                            type="button" 
+                            id="toggleKeyVisibility"
+                            class="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 focus:outline-none font-sans"
+                            onclick="toggleApiKey()"
+                        >Show</button>
+                    </div>
+                    <select id="modelSelect" class="px-3 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 font-medium">
+                        <option value="gemini-3.6-flash" selected>gemini-3.6-flash (Recommended)</option>
+                        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Help & Guidance Sub-bar -->
+            <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div class="flex items-center gap-1.5 text-slate-600">
+                    <span class="text-amber-500 font-bold">💡</span>
+                    <span>Free Google AI Studio key required. No credit card or paid subscription needed.</span>
+                </div>
+                <button
+                    type="button"
+                    onclick="openApiKeyGuideModal()"
+                    class="font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow-xs"
+                >
+                    <span>❓ What is an API key & How do I get one free? (30s)</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Inputs Wrapper -->
+        <div id="inputSection" class="space-y-6">
+            <!-- Job Description Section -->
+            <section class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">1. Job Description (JD)</h2>
+                        <p class="text-xs text-slate-500">Paste responsibilities, required technical skills, and candidate requirements.</p>
+                    </div>
+                    <button 
+                        type="button" 
+                        onclick="loadSampleJD()" 
+                        class="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
+                    >
+                        Load Sample JD
+                    </button>
+                </div>
+                <textarea
+                    id="jd"
+                    rows="6"
+                    class="w-full p-4 text-sm border border-slate-200 rounded-xl shadow-inner focus:ring-2 focus:ring-blue-500 outline-none transition text-slate-800 resize-y"
+                    placeholder="Paste the target job description here..."
+                ></textarea>
+            </section>
+
+            <!-- Resumes Section (Single or Multiple) -->
+            <section class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">2. Candidate Resumes</h2>
+                        <p class="text-xs text-slate-500">Evaluate 1 candidate or upload multiple candidates to rank and compare side-by-side.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button 
+                            type="button" 
+                            onclick="loadSampleResumes()" 
+                            class="text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition"
+                        >
+                            Load Sample Candidates
+                        </button>
+                        <button 
+                            type="button" 
+                            onclick="addResumeCard()" 
+                            class="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm"
+                        >
+                            <span class="text-base leading-none font-bold">+</span> Add Resume
+                        </button>
+                    </div>
+                </div>
+
+                <div id="resumeCardsContainer" class="space-y-4"></div>
+            </section>
+        </div>
+
+        <!-- Actions & Status -->
+        <div id="optimizeActions" class="flex flex-col items-center gap-3">
+            <button
+                id="optimizeButton"
+                class="px-8 py-3.5 bg-blue-600 text-white font-semibold rounded-full shadow-md hover:bg-blue-700 transition duration-200 transform hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-base"
+                onclick="handleOptimize()"
+            >
+                <span id="buttonText">Run Optimization & Analysis</span>
+                <div id="loadingSpinner" class="hidden h-5 w-5 border-2 border-white border-t-transparent rounded-full spinner"></div>
+            </button>
+            <p id="analysisHint" class="text-xs text-slate-500 text-center">Ready to evaluate candidates against the Job Description.</p>
+            
+            <div id="errorContainer" class="hidden w-full max-w-2xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl shadow-sm text-sm" role="alert">
+                <div class="flex items-start gap-2">
+                    <span class="font-bold">⚠️ Error:</span>
+                    <span id="errorMessage" class="flex-1"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <section id="resultsArea" class="hidden space-y-8 pb-12">
+            
+            <!-- Global Action Bar -->
+            <div class="no-print bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Analysis Exports:</span>
+                    <button 
+                        type="button"
+                        onclick="exportShortlistCSV()"
+                        class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center gap-1.5"
+                    >
+                        <span>📥</span> Export CSV Shortlist
+                    </button>
+                    <button 
+                        type="button"
+                        onclick="window.print()"
+                        class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition flex items-center gap-1.5"
+                    >
+                        <span>🖨️</span> Print / Save PDF Report
+                    </button>
+                </div>
+                <button 
+                    type="button"
+                    onclick="resetAnalysis()"
+                    class="text-xs text-slate-500 hover:text-slate-700 underline"
+                >
+                    Clear & Start New Analysis
+                </button>
+            </div>
+
+            <!-- Comparison Winner Banner (Visible for 2+ resumes) -->
+            <div id="comparisonSection" class="hidden bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+                <div class="relative z-10 space-y-6">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-blue-700/50 pb-5">
+                        <div>
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/20 text-amber-300 border border-amber-400/30 rounded-full text-xs font-bold uppercase tracking-wider mb-2">
+                                🏆 Top Recommended Candidate
+                            </span>
+                            <h2 id="topCandidateName" class="text-2xl sm:text-3xl font-extrabold text-white"></h2>
+                        </div>
+                        <div class="bg-blue-600/40 border border-blue-400/30 rounded-2xl p-4 text-center min-w-[130px]">
+                            <p class="text-xs text-blue-200 font-medium">Top Match Score</p>
+                            <p id="topCandidateScore" class="text-3xl sm:text-4xl font-black text-amber-300 mt-1"></p>
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-6 text-sm">
+                        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10 space-y-2">
+                            <h3 class="font-bold text-amber-300 flex items-center gap-2">
+                                <span>🎯</span> Why This Candidate Is Better
+                            </h3>
+                            <p id="topCandidateRationale" class="text-blue-100 leading-relaxed"></p>
+                        </div>
+                        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10 space-y-2">
+                            <h3 class="font-bold text-blue-200 flex items-center gap-2">
+                                <span>⚖️</span> Comparative Trade-Offs
+                            </h3>
+                            <ul id="keyTradeoffsList" class="space-y-1.5 text-blue-100 list-disc list-inside"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Candidate Rankings Leaderboard (Visible for 2+ resumes) -->
+            <div id="leaderboardSection" class="hidden bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <span>📊</span> Candidate Ranking & Score Breakdown
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-200 text-slate-500 font-semibold text-xs uppercase bg-slate-50">
+                                <th class="py-3 px-4">Rank</th>
+                                <th class="py-3 px-4">Candidate</th>
+                                <th class="py-3 px-4 text-center">Overall</th>
+                                <th class="py-3 px-4 text-center">Skills</th>
+                                <th class="py-3 px-4 text-center">Experience</th>
+                                <th class="py-3 px-4">Verdict</th>
+                                <th class="py-3 px-4">Key Advantage</th>
+                                <th class="py-3 px-4 no-print text-right">Quick Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboardTbody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Individual Candidate Profiles -->
+            <div class="space-y-4">
+                <h3 id="individualSectionTitle" class="text-xl font-bold text-slate-900 border-b border-slate-200 pb-2">
+                    Detailed Candidate Evaluations & Interactive Toolkit
+                </h3>
+                <div id="candidateCardsContainer" class="grid gap-6"></div>
+            </div>
+
+        </section>
+
+    </div>
+
+    <!-- Modal for Outreach Drafts & Tailored Resumes -->
+    <div id="actionModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 id="modalTitle" class="text-lg font-bold text-slate-900"></h3>
+                <button type="button" onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 text-sm text-slate-800 leading-relaxed flex-1">
+                <div id="modalLoading" class="hidden py-12 text-center space-y-3">
+                    <div class="h-8 w-8 border-3 border-blue-600 border-t-transparent rounded-full spinner mx-auto"></div>
+                    <p id="modalLoadingText" class="text-sm font-medium text-slate-600">Generating AI improvements...</p>
+                </div>
+                <div id="modalContent" class="space-y-4"></div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3" id="modalActions">
+                <button type="button" onclick="closeModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl">Close</button>
+                <button type="button" id="modalCopyBtn" onclick="copyModalContent()" class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm flex items-center gap-1.5">
+                    <span>📋</span> Copy to Clipboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        let resumeCardCounter = 0;
+        let currentAnalysisData = null;
+        let lastAnalyzedCandidates = [];
+
+        const SAMPLE_JD = `Role: Senior Full-Stack Engineer (Web & Cloud Platforms)
+Requirements:
+- 4+ years of software development experience with React, TypeScript, and modern front-end frameworks.
+- Strong proficiency in Python backend engineering (FastAPI or Django) and building RESTful APIs.
+- Experience with relational databases (PostgreSQL) and caching (Redis).
+- Production cloud experience with AWS (EC2, S3, RDS, Lambda) and Docker containerization.
+- Experience with CI/CD automation and microservices architecture.
+- Bachelor's degree in Computer Science or equivalent.`;
+
+        const SAMPLE_RESUMES = [
+            {
+                name: "Rahul Sharma",
+                text: `Rahul Sharma | Senior Full-Stack Engineer
+Email: rahul.s@example.com | Bengaluru, India
+Experience: 5+ years specializing in React, TypeScript, and Python FastAPI microservices.
+Work History:
+- Senior Engineer @ FinTech Cloud (2021 - Present): Architected microservices in Python FastAPI handling 20M requests/day. Built high-performance React/TypeScript dashboards. Deployed on AWS ECS with Docker and PostgreSQL.
+- Software Engineer @ WebApps Co (2019 - 2021): Built interactive React components, integrated Redis caching, and automated CI/CD with GitHub Actions.
+Skills: React, TypeScript, Python, FastAPI, Django, AWS (EC2, S3, RDS), Docker, PostgreSQL, Redis.
+Education: B.E. in Computer Science.`
+            },
+            {
+                name: "Sneha Rao",
+                text: `Sneha Rao | Junior Web Developer
+Email: sneha.r@example.com | Bengaluru, India
+Experience: 1.5 years of web development experience.
+Work History:
+- Junior Developer @ Startup Labs (2023 - Present): Developed responsive frontend UI with React and HTML5/CSS3. Assisted senior developers with basic Python Flask API endpoints.
+Skills: JavaScript, React, HTML5, CSS3, Python (Flask basics), Git.
+Education: B.E. in Information Science.`
+            },
+            {
+                name: "Arjun Kumar",
+                text: `Arjun Kumar | Backend Engineer
+Email: arjun.k@example.com | Hyderabad, India
+Experience: 4 years of backend experience in Java, Spring Boot, and PostgreSQL.
+Work History:
+- Backend Engineer @ Enterprise Systems (2021 - Present): Designed high-availability Java Spring Boot microservices with PostgreSQL and Docker. Minor exposure to front-end Angular.
+Skills: Java, Spring Boot, PostgreSQL, Docker, Microservices, REST APIs, Git. Limited Python and React.
+Education: B.Tech in Computer Science.`
+            }
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedKey = localStorage.getItem('gemini_api_key');
+            if (savedKey) {
+                document.getElementById('apiKey').value = savedKey;
+            }
+            addResumeCard("Candidate 1");
+        });
+
+        function toggleApiKey() {
+            const input = document.getElementById('apiKey');
+            const btn = document.getElementById('toggleKeyVisibility');
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = 'Hide';
+            } else {
+                input.type = 'password';
+                btn.textContent = 'Show';
+            }
+        }
+
+        function openApiKeyGuideModal() {
+            openModal("🔑 What is an API Key & How to Get One Free");
+            setModalLoading(false);
+            document.getElementById('modalContent').innerHTML = `
+                <div class="space-y-4 text-sm text-slate-700 leading-relaxed">
+                    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-2">
+                        <h4 class="font-bold text-blue-900 flex items-center gap-1.5">
+                            <span>🤔</span> What is an API Key?
+                        </h4>
+                        <p class="text-blue-950 text-xs sm:text-sm">
+                            An <strong>API Key</strong> is your personal free credential that connects this webpage directly to Google's Gemini AI. Because this website runs entirely in your browser without any middleman servers storing your data, using your own key ensures 100% privacy for your candidate resumes and job descriptions.
+                        </p>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                        <h4 class="font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>⚡</span> Can I use an OpenAI (ChatGPT) or Claude key?
+                        </h4>
+                        <p class="text-slate-600 text-xs sm:text-sm">
+                            <strong>No.</strong> This tool specifically connects to <strong>Google Gemini</strong> API endpoints. Keys from OpenAI, Anthropic Claude, or Groq will be rejected with an "Invalid Key" error. Google provides a generous free tier for Gemini with no credit card required.
+                        </p>
+                    </div>
+
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-3">
+                        <h4 class="font-bold text-emerald-900 flex items-center gap-1.5">
+                            <span>🚀</span> How to get your free key in 30 seconds:
+                        </h4>
+                        <ol class="list-decimal list-inside space-y-2 text-xs sm:text-sm text-emerald-950">
+                            <li>Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" class="font-bold text-blue-600 underline">Google AI Studio (aistudio.google.com/app/apikey)</a>.</li>
+                            <li>Sign in with your standard Google / Gmail account.</li>
+                            <li>Click the blue <strong>"Create API Key"</strong> button and select "Create key in new project".</li>
+                            <li>Copy the generated key (it starts with <code class="bg-emerald-200 px-1 py-0.5 rounded text-xs font-mono font-bold">AIzaSy...</code>).</li>
+                            <li>Paste it into the API key field at the top of this page. Your browser will save it automatically for future visits!</li>
+                        </ol>
+                    </div>
+
+                    <div class="text-center pt-2">
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-700 transition shadow-sm">
+                            <span>Open Google AI Studio to Get Free Key ↗</span>
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+        function loadSampleJD() {
+            document.getElementById('jd').value = SAMPLE_JD;
+        }
+
+        function loadSampleResumes() {
+            document.getElementById('resumeCardsContainer').innerHTML = '';
+            resumeCardCounter = 0;
+            SAMPLE_RESUMES.forEach(r => {
+                addResumeCard(r.name, r.text);
+            });
+            updateAnalysisHint();
+        }
+
+        function resetAnalysis() {
+            document.getElementById('resultsArea').classList.add('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function addResumeCard(initialName = '', initialText = '') {
+            resumeCardCounter++;
+            const id = resumeCardCounter;
+            const name = initialName || `Candidate ${id}`;
+
+            const card = document.createElement('div');
+            card.id = `resumeCard_${id}`;
+            card.className = "p-4 sm:p-5 border border-slate-200 rounded-2xl bg-slate-50/50 space-y-3 transition duration-150 relative";
+            card.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Candidate #${id}</span>
+                        <input
+                            type="text"
+                            value="${name}"
+                            id="candidateName_${id}"
+                            placeholder="Candidate Name or ID"
+                            class="font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                            <span>📄 Upload PDF/TXT</span>
+                            <input type="file" accept=".txt,.pdf,.md" class="hidden" onchange="handleFileUpload(event, ${id})">
+                        </label>
+                        <button 
+                            type="button" 
+                            onclick="removeResumeCard(${id})" 
+                            class="delete-btn text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition"
+                            title="Remove candidate"
+                        >
+                            ✕ Remove
+                        </button>
+                    </div>
+                </div>
+                <div class="relative">
+                    <textarea
+                        id="resumeText_${id}"
+                        rows="7"
+                        class="w-full p-3.5 text-sm bg-white border border-slate-200 rounded-xl shadow-inner focus:ring-2 focus:ring-blue-500 outline-none transition text-slate-800 resize-y font-mono text-xs"
+                        placeholder="Paste plain text of the resume or upload a file above..."
+                    >${initialText}</textarea>
+                    <div id="fileLoading_${id}" class="hidden absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center text-sm font-medium text-blue-600 gap-2">
+                        <div class="h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full spinner"></div>
+                        <span>Extracting document text...</span>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('resumeCardsContainer').appendChild(card);
+            updateAnalysisHint();
+        }
+
+        function removeResumeCard(id) {
+            const container = document.getElementById('resumeCardsContainer');
+            const cards = container.querySelectorAll('[id^="resumeCard_"]');
+            if (cards.length <= 1) {
+                alert("You need at least one candidate resume to analyze.");
+                return;
+            }
+            const target = document.getElementById(`resumeCard_${id}`);
+            if (target) {
+                target.remove();
+                updateAnalysisHint();
+            }
+        }
+
+        function updateAnalysisHint() {
+            const container = document.getElementById('resumeCardsContainer');
+            const count = container.querySelectorAll('[id^="resumeCard_"]').length;
+            const hint = document.getElementById('analysisHint');
+            const btnText = document.getElementById('buttonText');
+
+            if (count === 1) {
+                hint.textContent = "Single candidate mode: Scores, analyzes gaps, rewrites bullets, and tailors candidate for this role.";
+                btnText.textContent = "Run Optimization Analysis";
+            } else {
+                hint.textContent = `Comparative mode: Evaluates and compares ${count} candidates, ranks them, identifies trade-offs, and picks the winner.`;
+                btnText.textContent = `Compare & Rank ${count} Candidates`;
+            }
+        }
+
+        async function handleFileUpload(event, cardId) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const loader = document.getElementById(`fileLoading_${cardId}`);
+            const textarea = document.getElementById(`resumeText_${cardId}`);
+            const nameInput = document.getElementById(`candidateName_${cardId}`);
+
+            if (loader) loader.classList.remove('hidden');
+
+            const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+            if (nameInput && (!nameInput.value || nameInput.value.startsWith("Candidate"))) {
+                nameInput.value = cleanName;
+            }
+
+            try {
+                if (file.name.endsWith('.pdf')) {
+                    const text = await extractTextFromPDF(file);
+                    textarea.value = text;
+                } else {
+                    const text = await file.text();
+                    textarea.value = text;
+                }
+            } catch (err) {
+                console.error("File extraction error:", err);
+                alert("Failed to extract text from file: " + err.message);
+            } finally {
+                if (loader) loader.classList.add('hidden');
+            }
+        }
+
+        async function extractTextFromPDF(file) {
+            if (!window.pdfjsLib) {
+                throw new Error("PDF parser library failed to load. Please paste text directly.");
+            }
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = "";
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(" ");
+                fullText += pageText + "\n\n";
+            }
+
+            if (!fullText.trim()) {
+                throw new Error("PDF contains no extractable text (it may be a scanned document).");
+            }
+            return fullText.trim();
+        }
+
+        // --- Structured Output Schemas ---
+        const CandidateEvaluationSchemaProperties = {
+            candidateName: { type: "STRING" },
+            rank: { type: "INTEGER", description: "Ranking from 1 (best) to N" },
+            matchScorePercentage: { type: "NUMBER", description: "Overall match score 0-100" },
+            skillsScorePercentage: { type: "NUMBER", description: "Specific technical skills match 0-100" },
+            experienceScorePercentage: { type: "NUMBER", description: "Experience depth and seniority match 0-100" },
+            educationScorePercentage: { type: "NUMBER", description: "Education and certifications match 0-100" },
+            verdict: { type: "STRING", description: "Short classification e.g. 'Top Pick', 'Strong Contender', 'Review Needed', 'Low Match'" },
+            summary: { type: "STRING", description: "Concise summary of candidate's qualifications for this JD" },
+            keyStrengths: { type: "ARRAY", items: { type: "STRING" }, description: "3-5 key matching strengths" },
+            keyGaps: { type: "ARRAY", items: { type: "STRING" }, description: "3-5 missing qualifications or areas needing proof" },
+            suggestionsForImprovement: { type: "ARRAY", items: { type: "STRING" }, description: "3-5 concrete suggestions to improve the resume" },
+            interviewQuestions: {
+                type: "OBJECT",
+                properties: {
+                    technicalProbe: { type: "ARRAY", items: { type: "STRING" }, description: "2 deep technical questions testing their stated strengths" },
+                    gapVerification: { type: "ARRAY", items: { type: "STRING" }, description: "2 questions probing missing requirements or weak areas" },
+                    situational: { type: "STRING", description: "1 behavioral or situational question relevant to the role" }
+                },
+                required: ["technicalProbe", "gapVerification", "situational"]
+            }
+        };
+
+        const SingleEvaluationSchema = {
+            type: "OBJECT",
+            properties: {
+                ...CandidateEvaluationSchemaProperties
+            },
+            required: ["candidateName", "matchScorePercentage", "skillsScorePercentage", "experienceScorePercentage", "educationScorePercentage", "verdict", "summary", "keyStrengths", "keyGaps", "suggestionsForImprovement", "interviewQuestions"]
+        };
+
+        const MultiEvaluationSchema = {
+            type: "OBJECT",
+            properties: {
+                comparison: {
+                    type: "OBJECT",
+                    properties: {
+                        topCandidate: { type: "STRING", description: "Name of the single best candidate" },
+                        winningScore: { type: "NUMBER", description: "Match score of the top candidate (0-100)" },
+                        selectionRationale: { type: "STRING", description: "Clear, detailed explanation of why this candidate is superior to the others for this role" },
+                        comparativeSummary: { type: "STRING", description: "Comprehensive comparison across tech stack, seniority, and role fit" },
+                        keyTradeoffs: { type: "ARRAY", items: { type: "STRING" }, description: "3-4 bullet points highlighting key trade-offs between candidates" }
+                    },
+                    required: ["topCandidate", "winningScore", "selectionRationale", "comparativeSummary", "keyTradeoffs"]
+                },
+                candidates: {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            ...CandidateEvaluationSchemaProperties
+                        },
+                        required: ["candidateName", "rank", "matchScorePercentage", "skillsScorePercentage", "experienceScorePercentage", "educationScorePercentage", "verdict", "summary", "keyStrengths", "keyGaps", "suggestionsForImprovement", "interviewQuestions"]
+                    }
+                }
+            },
+            required: ["comparison", "candidates"]
+        };
+
+        const SystemInstruction = `You are a Principal Technical Recruiter and Resume Optimization Expert.
+Your objective:
+1. Objectively evaluate resumes against the provided Job Description (JD).
+2. Rate technical skills, experience alignment, and educational requirements.
+3. When multiple candidates are provided, perform a rigorous comparative evaluation to determine who is best, explain why, and document trade-offs.
+4. Generate tailored role-specific interview questions for each candidate to test their strengths and verify gaps.
+5. Adhere strictly to the requested JSON response schema.`;
+
+        function setLoading(isLoading) {
+            const btn = document.getElementById('optimizeButton');
+            const text = document.getElementById('buttonText');
+            const spinner = document.getElementById('loadingSpinner');
+
+            btn.disabled = isLoading;
+            if (isLoading) {
+                text.textContent = 'Evaluating & Analyzing...';
+                spinner.classList.remove('hidden');
+            } else {
+                updateAnalysisHint();
+                spinner.classList.add('hidden');
+            }
+        }
+
+        async function fetchWithRetry(url, options, maxRetries = 3) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errMsg = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+                        if (response.status === 429 || response.status >= 500) {
+                            if (i < maxRetries - 1) {
+                                const delay = Math.pow(2, i) * 1000 + 500;
+                                await new Promise(res => setTimeout(res, delay));
+                                continue;
+                            }
+                        }
+                        throw new Error(errMsg);
+                    }
+                    return response;
+                } catch (err) {
+                    if (i === maxRetries - 1) throw err;
+                    await new Promise(res => setTimeout(res, 1000 * (i + 1)));
+                }
+            }
+        }
+
+        async function handleOptimize() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const model = document.getElementById('modelSelect').value;
+            const jd = document.getElementById('jd').value.trim();
+            const errorContainer = document.getElementById('errorContainer');
+            const errorMessage = document.getElementById('errorMessage');
+            const resultsArea = document.getElementById('resultsArea');
+
+            errorContainer.classList.add('hidden');
+            resultsArea.classList.add('hidden');
+
+            if (!apiKey) {
+                errorMessage.textContent = "Please enter your Google Gemini API Key in the box at the top. Click 'How to get a free API Key' if you need one.";
+                errorContainer.classList.remove('hidden');
+                document.getElementById('apiKey').focus();
+                return;
+            }
+
+            localStorage.setItem('gemini_api_key', apiKey);
+
+            if (!jd) {
+                errorMessage.textContent = "Please provide the Job Description (JD).";
+                errorContainer.classList.remove('hidden');
+                document.getElementById('jd').focus();
+                return;
+            }
+
+            const container = document.getElementById('resumeCardsContainer');
+            const cards = container.querySelectorAll('[id^="resumeCard_"]');
+            const candidatesData = [];
+
+            cards.forEach(card => {
+                const cardId = card.id.replace('resumeCard_', '');
+                const nameInput = document.getElementById(`candidateName_${cardId}`);
+                const textInput = document.getElementById(`resumeText_${cardId}`);
+                const name = nameInput ? nameInput.value.trim() || `Candidate ${cardId}` : `Candidate ${cardId}`;
+                const text = textInput ? textInput.value.trim() : '';
+
+                if (text) {
+                    candidatesData.push({ id: cardId, name, text });
+                }
+            });
+
+            if (candidatesData.length === 0) {
+                errorMessage.textContent = "Please provide at least one resume text or upload a resume file.";
+                errorContainer.classList.remove('hidden');
+                return;
+            }
+
+            setLoading(true);
+
+            const isMulti = candidatesData.length > 1;
+            const schema = isMulti ? MultiEvaluationSchema : SingleEvaluationSchema;
+
+            let prompt = `Job Description (JD):\n-------------------------\n${jd}\n-------------------------\n\n`;
+
+            if (isMulti) {
+                prompt += `Here are the ${candidatesData.length} candidates to evaluate, compare, and rank against this Job Description:\n\n`;
+                candidatesData.forEach((c, idx) => {
+                    prompt += `=== CANDIDATE ${idx + 1}: ${c.name} ===\n${c.text}\n\n`;
+                });
+                prompt += `Instructions:\n1. Evaluate all candidates against the JD with match scores (Overall, Skills, Experience, Education out of 100).\n2. Compare them against each other, explicitly declare which candidate is better and why, and provide comparative trade-offs.\n3. Rank all candidates from 1 (best) to ${candidatesData.length}.\n4. Generate custom interview questions for each candidate.\n5. Return the structured JSON response matching the schema.`;
+            } else {
+                prompt += `Candidate Name: ${candidatesData[0].name}\nResume Text:\n-------------------------\n${candidatesData[0].text}\n-------------------------\n\nEvaluate this candidate against the JD with score breakdowns, strengths, gaps, suggestions, and custom interview questions following the JSON schema.`;
+            }
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: SystemInstruction }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: schema
+                }
+            };
+
+            try {
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const candidatePart = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (!candidatePart) {
+                    throw new Error("No response returned from the Gemini model. Please verify your API key and quotas.");
+                }
+
+                const parsed = JSON.parse(candidatePart);
+                currentAnalysisData = parsed;
+                lastAnalyzedCandidates = candidatesData;
+
+                renderResults(parsed, isMulti, candidatesData);
+                resultsArea.classList.remove('hidden');
+                resultsArea.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (err) {
+                console.error("Analysis failed:", err);
+                errorMessage.textContent = err.message || "An unexpected error occurred during optimization.";
+                errorContainer.classList.remove('hidden');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function renderResults(data, isMulti, originalCandidates) {
+            const comparisonSection = document.getElementById('comparisonSection');
+            const leaderboardSection = document.getElementById('leaderboardSection');
+            const leaderboardTbody = document.getElementById('leaderboardTbody');
+            const candidateCardsContainer = document.getElementById('candidateCardsContainer');
+            const individualSectionTitle = document.getElementById('individualSectionTitle');
+
+            candidateCardsContainer.innerHTML = '';
+            leaderboardTbody.innerHTML = '';
+
+            if (isMulti && data.comparison) {
+                comparisonSection.classList.remove('hidden');
+                document.getElementById('topCandidateName').textContent = data.comparison.topCandidate || "Top Candidate";
+                document.getElementById('topCandidateScore').textContent = `${data.comparison.winningScore || 0}%`;
+                document.getElementById('topCandidateRationale').textContent = data.comparison.selectionRationale;
+
+                const tradeoffsList = document.getElementById('keyTradeoffsList');
+                tradeoffsList.innerHTML = '';
+                (data.comparison.keyTradeoffs || []).forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item;
+                    tradeoffsList.appendChild(li);
+                });
+
+                leaderboardSection.classList.remove('hidden');
+                const sortedCandidates = [...(data.candidates || [])].sort((a, b) => (a.rank || 0) - (b.rank || 0));
+
+                sortedCandidates.forEach((cand, idx) => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-50 transition";
+                    const isTop = cand.rank === 1;
+                    tr.innerHTML = `
+                        <td class="py-3 px-4 font-bold ${isTop ? 'text-amber-600' : 'text-slate-600'}">
+                            ${isTop ? '🥇 #1' : `#${cand.rank}`}
+                        </td>
+                        <td class="py-3 px-4 font-semibold text-slate-900">${cand.candidateName}</td>
+                        <td class="py-3 px-4 text-center">
+                            <span class="inline-block px-2.5 py-1 font-bold text-xs rounded-full ${
+                                cand.matchScorePercentage >= 80 ? 'bg-emerald-100 text-emerald-800' :
+                                cand.matchScorePercentage >= 60 ? 'bg-blue-100 text-blue-800' :
+                                'bg-rose-100 text-rose-800'
+                            }">
+                                ${cand.matchScorePercentage}%
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-center text-xs font-semibold text-slate-700">${cand.skillsScorePercentage || cand.matchScorePercentage}%</td>
+                        <td class="py-3 px-4 text-center text-xs font-semibold text-slate-700">${cand.experienceScorePercentage || cand.matchScorePercentage}%</td>
+                        <td class="py-3 px-4 text-xs font-medium text-slate-700">${cand.verdict}</td>
+                        <td class="py-3 px-4 text-xs text-slate-600">${cand.keyStrengths?.[0] || '-'}</td>
+                        <td class="py-3 px-4 no-print text-right">
+                            <button onclick="scrollToCandidate(${idx})" class="text-xs font-semibold text-blue-600 hover:text-blue-800 underline">
+                                View & Tailor ↓
+                            </button>
+                        </td>
+                    `;
+                    leaderboardTbody.appendChild(tr);
+                });
+
+                individualSectionTitle.textContent = "Detailed Evaluations & Optimization Copilot";
+
+                sortedCandidates.forEach((cand, idx) => {
+                    candidateCardsContainer.appendChild(createCandidateDetailCard(cand, idx, originalCandidates));
+                });
+
+            } else {
+                comparisonSection.classList.add('hidden');
+                leaderboardSection.classList.add('hidden');
+                individualSectionTitle.textContent = "Candidate Evaluation & Optimization Copilot";
+
+                const singleData = data.candidates ? data.candidates[0] : data;
+                if (!singleData.candidateName && originalCandidates.length > 0) {
+                    singleData.candidateName = originalCandidates[0].name;
+                }
+                candidateCardsContainer.appendChild(createCandidateDetailCard(singleData, 0, originalCandidates));
+            }
+        }
+
+        function scrollToCandidate(idx) {
+            const el = document.getElementById(`detailCard_${idx}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function createCandidateDetailCard(cand, idx, originalCandidates) {
+            const card = document.createElement('div');
+            card.id = `detailCard_${idx}`;
+            card.className = "bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-sm space-y-6 transition hover:shadow-md";
+
+            const score = cand.matchScorePercentage || 0;
+            const scoreColor = score >= 80 ? 'text-emerald-600 border-emerald-500' :
+                               score >= 60 ? 'text-blue-600 border-blue-500' :
+                               'text-amber-600 border-amber-500';
+
+            const skillsScore = cand.skillsScorePercentage || score;
+            const expScore = cand.experienceScorePercentage || score;
+            const eduScore = cand.educationScorePercentage || score;
+
+            card.innerHTML = `
+                <!-- Top Info -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                    <div class="space-y-1.5">
+                        <div class="flex items-center gap-2">
+                            ${cand.rank ? `<span class="px-2.5 py-0.5 bg-slate-100 text-slate-800 font-bold rounded-md text-xs">Rank #${cand.rank}</span>` : ''}
+                            <h4 class="text-2xl font-extrabold text-slate-900">${cand.candidateName || 'Candidate'}</h4>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                score >= 80 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                score >= 60 ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                'bg-amber-50 text-amber-700 border border-amber-200'
+                            }">${cand.verdict || 'Evaluated'}</span>
+                            <span class="text-xs text-slate-400">•</span>
+                            <span class="text-xs text-slate-500">Screening Complete</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                        <div class="text-right">
+                            <span class="text-xs text-slate-500 block font-medium">Overall Match</span>
+                            <span class="text-3xl font-black ${scoreColor.split(' ')[0]}">${score}%</span>
+                        </div>
+                        <div class="w-14 h-14 rounded-full border-4 ${scoreColor.split(' ')[1]} flex items-center justify-center font-bold text-sm text-slate-800 bg-white shadow-inner">
+                            ${score}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-Score Breakdown Bars -->
+                <div class="grid sm:grid-cols-3 gap-3 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div class="space-y-1">
+                        <div class="flex justify-between font-semibold text-slate-700">
+                            <span>Skills Match</span>
+                            <span>${skillsScore}%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: ${skillsScore}%"></div>
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between font-semibold text-slate-700">
+                            <span>Experience Depth</span>
+                            <span>${expScore}%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                            <div class="bg-indigo-600 h-2 rounded-full" style="width: ${expScore}%"></div>
+                        </div>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between font-semibold text-slate-700">
+                            <span>Education & Certs</span>
+                            <span>${eduScore}%</span>
+                        </div>
+                        <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                            <div class="bg-emerald-600 h-2 rounded-full" style="width: ${eduScore}%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary of Fit -->
+                <div class="bg-blue-50/30 rounded-2xl p-4 text-sm text-slate-700 leading-relaxed border border-blue-100">
+                    <strong class="text-slate-900 block mb-1 font-semibold">Executive Assessment:</strong>
+                    ${cand.summary}
+                </div>
+
+                <!-- Strengths and Gaps -->
+                <div class="grid md:grid-cols-2 gap-4 text-sm">
+                    <div class="bg-emerald-50/40 border border-emerald-200/60 rounded-xl p-4 space-y-2">
+                        <h5 class="font-bold text-emerald-800 flex items-center gap-1.5">
+                            <span>✅</span> Key Strengths & Demonstrated Fit
+                        </h5>
+                        <ul class="space-y-1.5 text-emerald-950 list-disc list-inside">
+                            ${(cand.keyStrengths || []).map(s => `<li>${s}</li>`).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="bg-rose-50/40 border border-rose-200/60 rounded-xl p-4 space-y-2">
+                        <h5 class="font-bold text-rose-800 flex items-center gap-1.5">
+                            <span>⚠️</span> Critical Gaps & Missing Requirements
+                        </h5>
+                        <ul class="space-y-1.5 text-rose-950 list-disc list-inside">
+                            ${(cand.keyGaps || []).map(g => `<li>${g}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Actionable Suggestions -->
+                <div class="bg-amber-50/30 border border-amber-200/60 rounded-xl p-4 space-y-2 text-sm">
+                    <h5 class="font-bold text-amber-900 flex items-center gap-1.5">
+                        <span>💡</span> Actionable Suggestions to Optimize Resume
+                    </h5>
+                    <ol class="space-y-1.5 text-amber-950 list-decimal list-inside">
+                        ${(cand.suggestionsForImprovement || []).map(s => `<li>${s}</li>`).join('')}
+                    </ol>
+                </div>
+
+                <!-- Post-Analysis Interactive Action Bar -->
+                <div class="no-print pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Post-Analysis Toolkit:</span>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onclick="triggerResumeTailoring(${idx})"
+                            class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shadow-sm flex items-center gap-1.5"
+                        >
+                            <span>✨</span> Rewrite & Tailor Bullets
+                        </button>
+                        <button
+                            type="button"
+                            onclick="showInterviewQuestions(${idx})"
+                            class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1.5"
+                        >
+                            <span>🎙️</span> Interview Questions
+                        </button>
+                        <button
+                            type="button"
+                            onclick="triggerDraftEmail(${idx}, 'invite')"
+                            class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1.5"
+                        >
+                            <span>✉️</span> Invite Draft
+                        </button>
+                        <button
+                            type="button"
+                            onclick="triggerDraftEmail(${idx}, 'feedback')"
+                            class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1.5"
+                        >
+                            <span>📝</span> Feedback Draft
+                        </button>
+                    </div>
+                </div>
+            `;
+            return card;
+        }
+
+        // --- Post-Analysis Feature 1: AI Resume Tailoring ---
+        async function triggerResumeTailoring(candidateIdx) {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const model = document.getElementById('modelSelect').value;
+            const jd = document.getElementById('jd').value.trim();
+
+            const candidatesList = currentAnalysisData?.candidates || [currentAnalysisData];
+            const cand = candidatesList[candidateIdx] || {};
+            const candidateName = cand.candidateName || `Candidate ${candidateIdx + 1}`;
+            
+            const orig = lastAnalyzedCandidates[candidateIdx] || lastAnalyzedCandidates[0] || {};
+            const currentText = orig.text || "";
+
+            openModal(`✨ AI Resume Tailoring for ${candidateName}`);
+            setModalLoading(true, "Rewriting weak bullets and tailoring resume to target JD...");
+
+            const prompt = `You are an elite Resume Writer and Career Coach.
+Job Description (JD):
+${jd}
+
+Candidate Name: ${candidateName}
+Current Resume Text:
+${currentText}
+
+Task:
+1. Rewrite the candidate's core professional work experience into 4-6 high-impact, quantified bullet points tailored specifically to match the requirements in the JD.
+2. Incorporate target technical keywords from the JD without fabricating falsehoods or unearned credentials.
+3. Use the STAR (Situation, Task, Action, Result) action-verb formula.
+4. Output a clean, beautifully formatted markdown block with:
+   - "🎯 Key Added Target Keywords"
+   - "📄 Tailored Work Experience Bullet Points (Ready to Copy/Paste)"
+   - "📈 Expected Score Impact"`;
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+            try {
+                const res = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const data = await res.json();
+                const outputText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Unable to generate tailored resume.";
+
+                setModalLoading(false);
+                document.getElementById('modalContent').innerHTML = `
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 font-sans whitespace-pre-wrap leading-relaxed text-sm">
+${outputText}
+                    </div>
+                    <div class="p-3 bg-blue-50 text-blue-800 rounded-xl text-xs flex items-center gap-2">
+                        <span>💡 Tip:</span> Copy these bullets into the candidate's resume box above and re-run the analysis to verify the score increase!
+                    </div>
+                `;
+            } catch (err) {
+                setModalLoading(false);
+                document.getElementById('modalContent').innerHTML = `<p class="text-red-600">Failed to tailor resume: ${err.message}</p>`;
+            }
+        }
+
+        // --- Post-Analysis Feature 2: Interview Questions ---
+        function showInterviewQuestions(candidateIdx) {
+            const candidatesList = currentAnalysisData?.candidates || [currentAnalysisData];
+            const candidate = candidatesList[candidateIdx] || {};
+            const candidateName = candidate.candidateName || `Candidate ${candidateIdx + 1}`;
+
+            const q = candidate?.interviewQuestions || {
+                technicalProbe: ["Describe your experience designing architectures for scalable microservices.", "How do you handle database optimizations in PostgreSQL?"],
+                gapVerification: ["How would you quickly ramp up on required technologies not listed in your resume?", "Describe a challenge you solved in production deployments."],
+                situational: "Tell me about a situation where a production defect occurred and how you handled root-cause analysis."
+            };
+
+            openModal(`🎙️ Tailored Interview Questions: ${candidateName}`);
+            setModalLoading(false);
+
+            document.getElementById('modalContent').innerHTML = `
+                <div class="space-y-4 text-sm">
+                    <div class="bg-blue-50/50 border border-blue-200/60 rounded-2xl p-4 space-y-2">
+                        <h4 class="font-bold text-blue-900 flex items-center gap-1.5">
+                            <span>🛠️</span> Technical Probe Questions (Testing Claimed Strengths)
+                        </h4>
+                        <ul class="list-disc list-inside space-y-1.5 text-blue-950">
+                            ${(q.technicalProbe || []).map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="bg-amber-50/50 border border-amber-200/60 rounded-2xl p-4 space-y-2">
+                        <h4 class="font-bold text-amber-900 flex items-center gap-1.5">
+                            <span>🔍</span> Gap Verification Questions (Probing Missing Requirements)
+                        </h4>
+                        <ul class="list-disc list-inside space-y-1.5 text-amber-950">
+                            ${(q.gapVerification || []).map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="bg-purple-50/50 border border-purple-200/60 rounded-2xl p-4 space-y-2">
+                        <h4 class="font-bold text-purple-900 flex items-center gap-1.5">
+                            <span>🤝</span> Behavioral & Situational Alignment
+                        </h4>
+                        <p class="text-purple-950 font-medium">${q.situational || "Describe your approach to code reviews and cross-functional team collaboration."}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Post-Analysis Feature 3: Recruiter Outreach Drafts ---
+        async function triggerDraftEmail(candidateIdx, type) {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const model = document.getElementById('modelSelect').value;
+            const jd = document.getElementById('jd').value.trim();
+
+            const candidatesList = currentAnalysisData?.candidates || [currentAnalysisData];
+            const candidate = candidatesList[candidateIdx] || {};
+            const candidateName = candidate.candidateName || `Candidate ${candidateIdx + 1}`;
+            const score = candidate.matchScorePercentage || 0;
+
+            const isInvite = type === 'invite';
+            openModal(isInvite ? `✉️ Interview Invitation: ${candidateName}` : `📝 Constructive Feedback: ${candidateName}`);
+            setModalLoading(true, `Drafting personalized ${isInvite ? 'invitation' : 'constructive feedback'} email...`);
+
+            const prompt = `You are a professional Technical Recruiter.
+Candidate Name: ${candidateName}
+Match Score: ${score}%
+Email Type: ${isInvite ? "Interview Invitation" : "Constructive Feedback / Polite Pass"}
+
+Job Description:
+${jd}
+
+Draft a warm, polite, professional email tailored specifically to this candidate.
+Include:
+- Professional Subject Line
+- Personalized greeting
+- Direct mention of role and why they are being contacted (highlighting strengths or encouraging future applications)
+- Clear next steps
+- Professional sign-off`;
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+            try {
+                const res = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const data = await res.json();
+                const outputText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Unable to draft email.";
+
+                setModalLoading(false);
+                document.getElementById('modalContent').innerHTML = `
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 font-sans whitespace-pre-wrap leading-relaxed text-sm">
+${outputText}
+                    </div>
+                `;
+            } catch (err) {
+                setModalLoading(false);
+                document.getElementById('modalContent').innerHTML = `<p class="text-red-600">Failed to draft email: ${err.message}</p>`;
+            }
+        }
+
+        // --- Post-Analysis Feature 4: Shortlist CSV Export ---
+        function exportShortlistCSV() {
+            if (!currentAnalysisData) {
+                alert("Please run the optimization analysis first.");
+                return;
+            }
+
+            const candidates = currentAnalysisData.candidates || [currentAnalysisData];
+            let csv = "Rank,Candidate Name,Match Score,Skills Score,Experience Score,Verdict,Summary,Key Strengths,Key Gaps\n";
+
+            candidates.forEach(c => {
+                const rank = c.rank || 1;
+                const name = `"${(c.candidateName || '').replace(/"/g, '""')}"`;
+                const score = c.matchScorePercentage || 0;
+                const skills = c.skillsScorePercentage || score;
+                const exp = c.experienceScorePercentage || score;
+                const verdict = `"${(c.verdict || '').replace(/"/g, '""')}"`;
+                const summary = `"${(c.summary || '').replace(/"/g, '""')}"`;
+                const strengths = `"${(c.keyStrengths || []).join('; ').replace(/"/g, '""')}"`;
+                const gaps = `"${(c.keyGaps || []).join('; ').replace(/"/g, '""')}"`;
+
+                csv += `${rank},${name},${score}%,${skills}%,${exp}%,${verdict},${summary},${strengths},${gaps}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Candidate_Shortlist_Report_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // --- Modal Helpers ---
+        function openModal(title) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalContent').innerHTML = '';
+            document.getElementById('actionModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('actionModal').classList.add('hidden');
+        }
+
+        function setModalLoading(isLoading, text = "Loading...") {
+            const loader = document.getElementById('modalLoading');
+            const content = document.getElementById('modalContent');
+            const loadText = document.getElementById('modalLoadingText');
+
+            if (isLoading) {
+                loader.classList.remove('hidden');
+                content.classList.add('hidden');
+                loadText.textContent = text;
+            } else {
+                loader.classList.add('hidden');
+                content.classList.remove('hidden');
+            }
+        }
+
+        function copyModalContent() {
+            const text = document.getElementById('modalContent').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.getElementById('modalCopyBtn');
+                const orig = btn.innerHTML;
+                btn.innerHTML = '<span>✅</span> Copied!';
+                setTimeout(() => { btn.innerHTML = orig; }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
+
+<footer class="text-center text-xs text-slate-400 py-8">
+    <p>
+        ⚠️ AI-assisted screening only. Do not use AI scores as the sole basis
+        for employment decisions. Human review is recommended.
+    </p>
+</footer>
